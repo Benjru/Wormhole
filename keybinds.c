@@ -90,7 +90,7 @@ keybinds_t *read_keybind_configuration()
 			while(curr_key)
 			{
 				keypress_str_arr = realloc(keypress_str_arr, sizeof(char *) * ++ksa_size);
-				key_combos[bind_index] = (xkb_keysym_t*) realloc(key_combos[bind_index], sizeof(xkb_keysym_t) * ksa_size);
+				key_combos[bind_index] = reallocarray(key_combos[bind_index], ksa_size, sizeof(xkb_keysym_t) * ksa_size);
 				keypress_str_arr[ksa_size - 1] = strdup(curr_key);
 				curr_key = strtok(NULL, "+");
 			}
@@ -101,14 +101,14 @@ keybinds_t *read_keybind_configuration()
 			int i;
 			for(i=0; i<ksa_size; i++)
 			{
-				char *str_rep = keypress_str_arr[i];
+				char *str_rep = keypress_str_arr[i];	
 				xkb_keysym_t curr_sym = xkb_keysym_from_name(str_rep, XKB_KEYSYM_CASE_INSENSITIVE);
 				keysym_arr[i] = curr_sym;
 			}
 
 			/* Reallocate arrays and append line data */
-			key_combos = realloc(key_combos, sizeof(xkb_keysym_t *) * (bind_index + 1));
-			combo_actions = realloc(combo_actions, sizeof(char *) * (bind_index + 1));
+			key_combos = reallocarray(key_combos, bind_index + 1, sizeof(xkb_keysym_t *) * (bind_index + 1));		
+			combo_actions = reallocarray(combo_actions, bind_index + 1, sizeof(char *) * (bind_index + 1));
 			key_combos[bind_index] = (xkb_keysym_t*) malloc(sizeof(xkb_keysym_t) * ksa_size);
 			memcpy(key_combos[bind_index], keysym_arr, sizeof(xkb_keysym_t) * ksa_size);
 			

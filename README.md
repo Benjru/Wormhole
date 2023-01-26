@@ -1,6 +1,6 @@
 ## 🚧 Under construction 🚧
 
-Wormhole is an X window manager written in C using the XCB library. Currently, functionality is limited. Logic has been included to handle reading in keybind configurations, connecting to the X server, and displaying a window when an application is launched. However; reparenting and window manipulation has not yet been implemented. Furthermore, this behaviour is not yet configurable.
+Wormhole is an X window manager written in C using the XCB library. Currently, functionality is very limited. Logic has been included to handle reading in keybind configurations, connecting to the X server, and displaying a window when an application is launched. However, features such as automatic tiling, reparenting and resizing floating windows have not yet been implemented
 
 ## Compiling from source
 

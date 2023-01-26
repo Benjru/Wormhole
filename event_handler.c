@@ -14,6 +14,8 @@
 #include "action_processor.h"
 #include "keybinds.h"
 
+#include <time.h>
+
 static int MAX_COMBO_LENGTH = 5;
 static uint8_t *BASE_EVENT_OUT;
 
@@ -59,8 +61,10 @@ int main(int argc, char *argv)
 	valwin[0] = XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY | 
 				XCB_EVENT_MASK_KEY_PRESS |
 				XCB_EVENT_MASK_KEY_RELEASE |
-				XCB_EVENT_MASK_SUBSTRUCTURE_REDIRECT;
-				
+				XCB_EVENT_MASK_SUBSTRUCTURE_REDIRECT |
+				XCB_EVENT_MASK_FOCUS_CHANGE |
+				XCB_EVENT_MASK_PROPERTY_CHANGE;	
+		
 	xcb_change_window_attributes_checked(connection, root_window, mask, valwin);
 	xcb_flush(connection);
 	
@@ -127,13 +131,16 @@ int main(int argc, char *argv)
 
 	/* Main event loop */
 	while(true)
-	{
+	{	
+		/* Process new events */
 		xcb_generic_event_t *event = xcb_wait_for_event(connection);
 		if(event != NULL)
 		{	
+			// printf("Generic event detected!\n");
+	
 			switch(event->response_type & ~0x80)
 			{	
-				/* Handle key press events*/
+				/* Handle key press events */
 				case XCB_KEY_PRESS:
 				{					
 					/* Get pressed key and add it to the array*/
@@ -143,7 +150,7 @@ int main(int argc, char *argv)
 					combo_keysyms[combo_index] = keysym;
 					combo_index++;
 
-					/* Iterate through combinations specified in hotkey file */
+					/* Iterate through combinations specified in keybind file */
 					int i;
 					for(i=0; i<keybinds->num_binds; i++)
 					{
@@ -152,9 +159,7 @@ int main(int argc, char *argv)
 						
 						if(combo_index == bind_length && memcmp(combo_keysyms, combo, sizeof(xkb_keysym_t) * bind_length) == 0)
 						{
-							process_action(keybinds->actions[i]);
-							memset(combo_keysyms, 0, sizeof(xkb_keysym_t) * bind_length);
-							combo_index = 0;
+							process_action(keybinds->actions[i], connection);
 						}
 					}				
 					break;
@@ -163,6 +168,7 @@ int main(int argc, char *argv)
 				/* Handle key release events*/
 				case XCB_KEY_RELEASE:
 				{
+					
 					/* Get released key  */
 					xcb_key_release_event_t *key_release_event = (xcb_key_release_event_t*)event;
 					xcb_keycode_t keycode = key_release_event->detail;
@@ -195,25 +201,31 @@ int main(int argc, char *argv)
 					xcb_window_t win = map_request->window;
 
 					uint32_t map_values[1];
-					map_values[0] = XCB_EVENT_MASK_ENTER_WINDOW | XCB_EVENT_MASK_FOCUS_CHANGE;
-					xcb_map_window(connection, win);				
+					map_values[0] = XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY | 
+									XCB_EVENT_MASK_KEY_PRESS |
+									XCB_EVENT_MASK_KEY_RELEASE  |
+									XCB_EVENT_MASK_FOCUS_CHANGE |
+									XCB_EVENT_MASK_PROPERTY_CHANGE;
+					
+					xcb_map_window(connection, win);	
 					
 					// TODO: Remove hardcoded values
-					uint32_t vals[5];
-					vals[0] = 0;
-					vals[1] = 0;
-					vals[2] = 300;
-					vals[3] = 300;
-					vals[4] = 5; 
+					uint32_t geometry[5];
+					geometry[0] = 0;
+					geometry[1] = 0;
+					geometry[2] = 300;
+					geometry[3] = 300;
+					geometry[4] = 5; 
 					
 					/* Configure window */
 					xcb_configure_window(connection, win, XCB_CONFIG_WINDOW_X |
 														  XCB_CONFIG_WINDOW_Y |
 														  XCB_CONFIG_WINDOW_WIDTH |
 														  XCB_CONFIG_WINDOW_HEIGHT | 
-														  XCB_CONFIG_WINDOW_BORDER_WIDTH, vals);
+														  XCB_CONFIG_WINDOW_BORDER_WIDTH, geometry);
 					xcb_flush(connection);
 					xcb_change_window_attributes_checked(connection, win, XCB_CW_EVENT_MASK, map_values);
+					xcb_set_input_focus(connection, XCB_INPUT_FOCUS_POINTER_ROOT, win, XCB_CURRENT_TIME);
 					break;
 				}
 			}
