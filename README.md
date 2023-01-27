@@ -2,6 +2,9 @@
 
 Wormhole is an X window manager written in C using the XCB library. Currently, functionality is very limited. Logic has been included to handle reading in keybind configurations, connecting to the X server, and displaying a window when an application is launched. However, features such as automatic tiling, reparenting and resizing floating windows have not yet been implemented
 
+## Demonstration
+![wormhole_demo](https://user-images.githubusercontent.com/95383688/214979080-e321e5ae-7368-4d8b-a8b1-ba8cdedd220a.gif)
+
 ## Compiling from source
 
 To compile this program from source, first you will need to clone this repository with the following command:
