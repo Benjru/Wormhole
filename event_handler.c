@@ -129,6 +129,12 @@ int main(int argc, char *argv)
 	xkb_keysym_t combo_keysyms[MAX_COMBO_LENGTH];
 	int combo_index = 0;
 
+	int16_t mouse_x = 0;
+	int16_t mouse_y = 0;
+	int16_t start_mouse_x = 0;
+	int16_t start_mouse_y = 0;
+	bool button_held = false;
+
 	/* Main event loop */
 	while(true)
 	{	
@@ -136,15 +142,13 @@ int main(int argc, char *argv)
 		xcb_generic_event_t *event = xcb_wait_for_event(connection);
 		if(event != NULL)
 		{	
-			// printf("Generic event detected!\n");
-	
 			switch(event->response_type & ~0x80)
 			{	
 				/* Handle key press events */
 				case XCB_KEY_PRESS:
 				{					
 					/* Get pressed key and add it to the array*/
-					xcb_key_press_event_t *key_press_event = (xcb_key_press_event_t*)event;
+					xcb_key_press_event_t *key_press_event = (xcb_key_press_event_t*) event;
 					xcb_keycode_t keycode = key_press_event->detail;
 					xcb_keysym_t keysym = xcb_key_symbols_get_keysym(key_symbols, keycode, 0);
 					combo_keysyms[combo_index] = keysym;
@@ -170,7 +174,7 @@ int main(int argc, char *argv)
 				{
 					
 					/* Get released key  */
-					xcb_key_release_event_t *key_release_event = (xcb_key_release_event_t*)event;
+					xcb_key_release_event_t *key_release_event = (xcb_key_release_event_t*) event;
 					xcb_keycode_t keycode = key_release_event->detail;
 					xcb_keysym_t keysym = xcb_key_symbols_get_keysym(key_symbols, keycode, 0);
 					int keysym_index = -1;
@@ -197,8 +201,15 @@ int main(int argc, char *argv)
 				/* Handle request to map newly created window */
 				case XCB_MAP_REQUEST:
 				{		
-					xcb_map_request_event_t *map_request = (xcb_map_request_event_t *)event;
+				
+					// TODO:
+					// 1. Assign window sizes using data from map request
+					// 2. Fix focus when a window is clicked - line in button
+					//    press case appears to be insufficient
+				
+					xcb_map_request_event_t *map_request = (xcb_map_request_event_t *) event;
 					xcb_window_t win = map_request->window;
+					int BAR_SIZE = 40;
 
 					uint32_t map_values[1];
 					map_values[0] = XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY | 
@@ -207,27 +218,123 @@ int main(int argc, char *argv)
 									XCB_EVENT_MASK_FOCUS_CHANGE |
 									XCB_EVENT_MASK_PROPERTY_CHANGE;
 					
-					xcb_map_window(connection, win);	
-					
+					uint32_t p_map_values[1];
+					p_map_values[0] = XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY |
+											XCB_EVENT_MASK_KEY_PRESS |
+											XCB_EVENT_MASK_KEY_RELEASE  |
+											XCB_EVENT_MASK_FOCUS_CHANGE |
+											XCB_EVENT_MASK_PROPERTY_CHANGE |
+											XCB_EVENT_MASK_BUTTON_PRESS |
+											XCB_EVENT_MASK_BUTTON_RELEASE |
+											XCB_EVENT_MASK_POINTER_MOTION;
+
 					// TODO: Remove hardcoded values
 					uint32_t geometry[5];
-					geometry[0] = 0;
-					geometry[1] = 0;
+					geometry[0] = 50;
+					geometry[1] = 50;
 					geometry[2] = 300;
 					geometry[3] = 300;
-					geometry[4] = 5; 
+					geometry[4] = 5;
+
+					/* Child window geometry */
+					uint32_t c_geometry[5];
+					c_geometry[0] = geometry[0];
+					c_geometry[1] = 0;
+					c_geometry[2] = 0;
+					c_geometry[3] = geometry[3];
+					c_geometry[4] = geometry[4];
+
+					/* Parent window geometry */
+					uint32_t p_geometry[5];
+					p_geometry[0] = geometry[0];
+					p_geometry[1] = geometry[1];
+					p_geometry[2] = geometry[2];
+					p_geometry[3] = geometry[3] + BAR_SIZE;
+					p_geometry[4] = geometry[4];
+	
+					xcb_window_t parent = xcb_generate_id(connection);
+					uint32_t background_color = 0x000000; // TODO: remove hardcode
+					xcb_create_window(connection,
+									  XCB_COPY_FROM_PARENT, 
+									  parent,
+									  root_window,
+									  p_geometry[0],
+									  p_geometry[1], 
+									  p_geometry[2], 
+									  p_geometry[3], 
+									  p_geometry[4], 
+									  XCB_WINDOW_CLASS_INPUT_OUTPUT,
+									  screen->root_visual,
+									  XCB_CW_BACK_PIXEL,
+									  (uint32_t[]) {background_color});
+
+					xcb_reparent_window(connection, win, parent, 0, BAR_SIZE);
+					xcb_map_window(connection, parent);
+					xcb_map_window(connection, win);	
 					
 					/* Configure window */
 					xcb_configure_window(connection, win, XCB_CONFIG_WINDOW_X |
 														  XCB_CONFIG_WINDOW_Y |
 														  XCB_CONFIG_WINDOW_WIDTH |
 														  XCB_CONFIG_WINDOW_HEIGHT | 
-														  XCB_CONFIG_WINDOW_BORDER_WIDTH, geometry);
+														  XCB_CONFIG_WINDOW_BORDER_WIDTH, c_geometry);
+														  
+					xcb_change_window_attributes(connection, parent, XCB_CW_EVENT_MASK, p_map_values);										  
 					xcb_flush(connection);
-					xcb_change_window_attributes_checked(connection, win, XCB_CW_EVENT_MASK, map_values);
+					xcb_change_window_attributes(connection, win, XCB_CW_EVENT_MASK, map_values);
 					xcb_set_input_focus(connection, XCB_INPUT_FOCUS_POINTER_ROOT, win, XCB_CURRENT_TIME);
 					break;
 				}
+				
+				/* Handles button press events */
+				case XCB_BUTTON_PRESS:
+				{
+					xcb_button_press_event_t *button_event = (xcb_button_press_event_t *) event;
+					xcb_window_t win = button_event->event;
+					
+					start_mouse_x = button_event->event_x;
+					start_mouse_y = button_event->event_y;
+					
+					xcb_set_input_focus(connection, XCB_INPUT_FOCUS_POINTER_ROOT, win, XCB_CURRENT_TIME);
+					button_held = true;
+					break;
+				}
+					
+				/* Handles button release events*/
+				case XCB_BUTTON_RELEASE:
+				{
+
+					button_held = false;
+					break;
+				}
+				
+				/* Handles motion notify events */
+				case XCB_MOTION_NOTIFY:
+				{
+				
+					if(!button_held)
+					{
+						break;
+					}
+				
+					xcb_motion_notify_event_t *motion_event = (xcb_motion_notify_event_t *) event;
+					xcb_window_t p_win = motion_event->event;
+					xcb_get_geometry_reply_t *geometry_reply = xcb_get_geometry_reply(connection, xcb_get_geometry(connection, p_win), NULL);
+					
+					int win_x_pos = geometry_reply->x;
+					int win_y_pos = geometry_reply->y;
+					mouse_x = motion_event->event_x;
+					mouse_y = motion_event->event_y;
+					free(geometry_reply);
+					
+					xcb_configure_window(connection,
+										 p_win,
+										 XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y,
+										 (const uint32_t[]) {win_x_pos + mouse_x - start_mouse_x, win_y_pos + mouse_y - start_mouse_y});
+					xcb_flush(connection);
+					break;
+				}
+			
 			}
 			free(event);
 		}

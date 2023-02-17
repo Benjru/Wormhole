@@ -19,14 +19,27 @@ void shift_action(xcb_connection_t *connection, char direction)
 		return;
 	}
 	xcb_window_t focused = reply->focus;
-	
-	xcb_get_geometry_reply_t *g_reply = xcb_get_geometry_reply(connection, xcb_get_geometry(connection, focused), NULL);
+
+	xcb_query_tree_reply_t *p_reply = xcb_query_tree_reply(connection, xcb_query_tree(connection, focused), NULL);
+	if(p_reply)
+	{
+		printf("[Wormhole] Error - failed to retreive parent of focused window");
+	}
+	xcb_window_t parent = p_reply->parent;
+
+	xcb_get_geometry_reply_t *g_reply = xcb_get_geometry_reply(connection, xcb_get_geometry(connection, parent), NULL);
 	if(!g_reply)
 	{
-		printf("[Wormhole] Error - Failed to retrieve geometry focused window.\n");
+		printf("[Wormhole] Error - Failed to retreive geometry focused window's parent.\n");
 		return;
 	}
-	
+
+	/* Get dimensions and position of focused window */
+	int16_t win_x = g_reply->x;
+	int16_t win_y = g_reply->y;
+	int16_t win_w = g_reply->width;
+	int16_t win_h = g_reply->height;
+
 	int shift_x_amount = 0;
 	int shift_y_amount = 0;
 	
@@ -51,12 +64,6 @@ void shift_action(xcb_connection_t *connection, char direction)
 		shift_y_amount = shift_y_amount + SHIFT_AMOUNT;
 	}
 	
-	/* Get dimensions and position of focused window */
-	int16_t win_x = g_reply->x;
-	int16_t win_y = g_reply->y;
-	int16_t win_w = g_reply->width;
-	int16_t win_h = g_reply->height;
-	
 	uint32_t values[1];
 	values[0] = XCB_EVENT_MASK_ENTER_WINDOW |
 				XCB_EVENT_MASK_FOCUS_CHANGE |
@@ -71,15 +78,16 @@ void shift_action(xcb_connection_t *connection, char direction)
 	geometry[4] = 5; 
 	
 	/* Configure window */
-	xcb_configure_window(connection, focused, XCB_CONFIG_WINDOW_X |
+	xcb_configure_window(connection, parent, XCB_CONFIG_WINDOW_X |
 											  XCB_CONFIG_WINDOW_Y |
 											  XCB_CONFIG_WINDOW_WIDTH |
 											  XCB_CONFIG_WINDOW_HEIGHT | 
 											  XCB_CONFIG_WINDOW_BORDER_WIDTH, geometry);
 	xcb_flush(connection);
-	xcb_change_window_attributes_checked(connection, focused, XCB_CW_EVENT_MASK, values);
+	xcb_change_window_attributes_checked(connection, parent, XCB_CW_EVENT_MASK, values);
 	
 	free(g_reply);
+	free(p_reply);
 	free(reply);
 }
 
@@ -134,6 +142,19 @@ void process_action(char *action, xcb_connection_t *connection)
 		if(memcmp(action, action_string, strlen(action_string)) == 0)
 		{
 			shift_action(connection, 'D');
+		}
+		
+		action_string = "wcmd kill";
+		if(memcmp(action, action_string, strlen(action_string)) == 0)
+		{
+			xcb_get_input_focus_reply_t *focus = xcb_get_input_focus_reply(connection, xcb_get_input_focus(connection), NULL);
+			xcb_window_t win = focus->focus;
+			if (focus != NULL)
+			{
+				xcb_destroy_window(connection, win);
+				xcb_flush(connection);
+				free(focus);
+			}
 		}
 	}
 }
