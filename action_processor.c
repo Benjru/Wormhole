@@ -23,14 +23,14 @@ void shift_action(xcb_connection_t *connection, char direction)
 	xcb_query_tree_reply_t *p_reply = xcb_query_tree_reply(connection, xcb_query_tree(connection, focused), NULL);
 	if(p_reply)
 	{
-		printf("[Wormhole] Error - failed to retreive parent of focused window");
+		printf("[Wormhole] Error - failed to retreive parent of focused window\n");
 	}
 	xcb_window_t parent = p_reply->parent;
 
 	xcb_get_geometry_reply_t *g_reply = xcb_get_geometry_reply(connection, xcb_get_geometry(connection, parent), NULL);
 	if(!g_reply)
 	{
-		printf("[Wormhole] Error - Failed to retreive geometry focused window's parent.\n");
+		printf("[Wormhole] Error - Failed to retreive geometry of focused window's parent.\n");
 		return;
 	}
 
@@ -147,13 +147,13 @@ void process_action(char *action, xcb_connection_t *connection)
 		action_string = "wcmd kill";
 		if(memcmp(action, action_string, strlen(action_string)) == 0)
 		{
-			xcb_get_input_focus_reply_t *focus = xcb_get_input_focus_reply(connection, xcb_get_input_focus(connection), NULL);
-			xcb_window_t win = focus->focus;
-			if (focus != NULL)
+			xcb_get_input_focus_reply_t *f_reply = xcb_get_input_focus_reply(connection, xcb_get_input_focus(connection), NULL);
+			xcb_window_t win = f_reply->focus;
+			if (f_reply != NULL)
 			{
 				xcb_destroy_window(connection, win);
 				xcb_flush(connection);
-				free(focus);
+				free(f_reply);
 			}
 		}
 	}

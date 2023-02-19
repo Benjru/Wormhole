@@ -14,8 +14,6 @@
 #include "action_processor.h"
 #include "keybinds.h"
 
-#include <time.h>
-
 static int MAX_COMBO_LENGTH = 5;
 static uint8_t *BASE_EVENT_OUT;
 
@@ -202,40 +200,57 @@ int main(int argc, char *argv)
 				case XCB_MAP_REQUEST:
 				{		
 				
-					// TODO:
-					// 1. Assign window sizes using data from map request
-					// 2. Fix focus when a window is clicked - line in button
-					//    press case appears to be insufficient
+					// TODO: Fix focus issues:
+					//			- When a parent is dragged and then the mouse button is released, focus should be transfered to child window
+					//			- When a button press is detected in a child window, it should immediately receive focus
+					// TODO: remove hardcoded values
+					
+					int BAR_SIZE = 40;
+					int BORDER_WIDTH = 5;
+					uint32_t background_color = 0x000000;
 				
 					xcb_map_request_event_t *map_request = (xcb_map_request_event_t *) event;
 					xcb_window_t win = map_request->window;
-					int BAR_SIZE = 40;
+					
+					xcb_get_geometry_reply_t *g_reply_win = xcb_get_geometry_reply(connection, xcb_get_geometry(connection, win), NULL);
+					if(!g_reply_win)
+					{
+						printf("[Wormhole] Error - Failed to retreive geometry of window requesting mapping.\n");
+						break;
+					}
+					
+					xcb_get_geometry_reply_t *g_reply_root = xcb_get_geometry_reply(connection, xcb_get_geometry(connection, root_window), NULL);
+					if(!g_reply_root)
+					{
+						printf("[Wormhole] Error - Failed to retreive geometry of root window.\n");
+						break;
+					}
+					
+					uint16_t win_width = g_reply_win->width;
+					uint16_t win_height = g_reply_win->height;
+					uint16_t root_width = g_reply_root->width;
+					uint16_t root_height = g_reply_root->height;
+					free(g_reply_win);
+					free(g_reply_root);
 
 					uint32_t map_values[1];
-					map_values[0] = XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY | 
+					map_values[0] = XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY |
 									XCB_EVENT_MASK_KEY_PRESS |
 									XCB_EVENT_MASK_KEY_RELEASE  |
 									XCB_EVENT_MASK_FOCUS_CHANGE |
-									XCB_EVENT_MASK_PROPERTY_CHANGE;
+									XCB_EVENT_MASK_PROPERTY_CHANGE |
+									XCB_EVENT_MASK_BUTTON_PRESS |
+									XCB_EVENT_MASK_BUTTON_RELEASE |
+									XCB_EVENT_MASK_POINTER_MOTION;
 					
-					uint32_t p_map_values[1];
-					p_map_values[0] = XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY |
-											XCB_EVENT_MASK_KEY_PRESS |
-											XCB_EVENT_MASK_KEY_RELEASE  |
-											XCB_EVENT_MASK_FOCUS_CHANGE |
-											XCB_EVENT_MASK_PROPERTY_CHANGE |
-											XCB_EVENT_MASK_BUTTON_PRESS |
-											XCB_EVENT_MASK_BUTTON_RELEASE |
-											XCB_EVENT_MASK_POINTER_MOTION;
-
-					// TODO: Remove hardcoded values
+					/* General geometry */
 					uint32_t geometry[5];
-					geometry[0] = 50;
-					geometry[1] = 50;
-					geometry[2] = 300;
-					geometry[3] = 300;
-					geometry[4] = 5;
-
+					geometry[0] = (0.5 * root_width) - (0.5 * win_width);
+					geometry[1] = (0.5 * root_height) - (0.5 * win_height);
+					geometry[2] = win_width;
+					geometry[3] = win_height;
+					geometry[4] = BORDER_WIDTH;
+					
 					/* Child window geometry */
 					uint32_t c_geometry[5];
 					c_geometry[0] = geometry[0];
@@ -252,8 +267,8 @@ int main(int argc, char *argv)
 					p_geometry[3] = geometry[3] + BAR_SIZE;
 					p_geometry[4] = geometry[4];
 	
+					/* Reparent newly generated window */
 					xcb_window_t parent = xcb_generate_id(connection);
-					uint32_t background_color = 0x000000; // TODO: remove hardcode
 					xcb_create_window(connection,
 									  XCB_COPY_FROM_PARENT, 
 									  parent,
@@ -267,22 +282,20 @@ int main(int argc, char *argv)
 									  screen->root_visual,
 									  XCB_CW_BACK_PIXEL,
 									  (uint32_t[]) {background_color});
-
 					xcb_reparent_window(connection, win, parent, 0, BAR_SIZE);
 					xcb_map_window(connection, parent);
 					xcb_map_window(connection, win);	
 					
-					/* Configure window */
+					/* Configure child window */
 					xcb_configure_window(connection, win, XCB_CONFIG_WINDOW_X |
 														  XCB_CONFIG_WINDOW_Y |
 														  XCB_CONFIG_WINDOW_WIDTH |
 														  XCB_CONFIG_WINDOW_HEIGHT | 
-														  XCB_CONFIG_WINDOW_BORDER_WIDTH, c_geometry);
-														  
-					xcb_change_window_attributes(connection, parent, XCB_CW_EVENT_MASK, p_map_values);										  
-					xcb_flush(connection);
+														  XCB_CONFIG_WINDOW_BORDER_WIDTH, c_geometry);									  
+					xcb_change_window_attributes(connection, parent, XCB_CW_EVENT_MASK, map_values);										  
 					xcb_change_window_attributes(connection, win, XCB_CW_EVENT_MASK, map_values);
 					xcb_set_input_focus(connection, XCB_INPUT_FOCUS_POINTER_ROOT, win, XCB_CURRENT_TIME);
+					xcb_flush(connection);
 					break;
 				}
 				
@@ -297,21 +310,20 @@ int main(int argc, char *argv)
 					
 					xcb_set_input_focus(connection, XCB_INPUT_FOCUS_POINTER_ROOT, win, XCB_CURRENT_TIME);
 					button_held = true;
+					xcb_flush(connection);
 					break;
 				}
 					
 				/* Handles button release events*/
 				case XCB_BUTTON_RELEASE:
 				{
-
 					button_held = false;
 					break;
 				}
 				
 				/* Handles motion notify events */
 				case XCB_MOTION_NOTIFY:
-				{
-				
+				{	
 					if(!button_held)
 					{
 						break;
@@ -319,13 +331,19 @@ int main(int argc, char *argv)
 				
 					xcb_motion_notify_event_t *motion_event = (xcb_motion_notify_event_t *) event;
 					xcb_window_t p_win = motion_event->event;
-					xcb_get_geometry_reply_t *geometry_reply = xcb_get_geometry_reply(connection, xcb_get_geometry(connection, p_win), NULL);
 					
-					int win_x_pos = geometry_reply->x;
-					int win_y_pos = geometry_reply->y;
+					xcb_get_geometry_reply_t *g_reply = xcb_get_geometry_reply(connection, xcb_get_geometry(connection, p_win), NULL);
+					if(!g_reply)
+					{
+						printf("[Wormhole] Error - Failed to retreive geometry of focused window.\n");
+						break;
+					}
+					
+					int win_x_pos = g_reply->x;
+					int win_y_pos = g_reply->y;
 					mouse_x = motion_event->event_x;
 					mouse_y = motion_event->event_y;
-					free(geometry_reply);
+					free(g_reply);
 					
 					xcb_configure_window(connection,
 										 p_win,
@@ -333,8 +351,20 @@ int main(int argc, char *argv)
 										 (const uint32_t[]) {win_x_pos + mouse_x - start_mouse_x, win_y_pos + mouse_y - start_mouse_y});
 					xcb_flush(connection);
 					break;
+				}		
+				
+				/* Handles shift in window focus */
+				case XCB_FOCUS_IN:
+				{
+					xcb_focus_in_event_t *focus_event = (xcb_focus_in_event_t *) event;
+					xcb_window_t win = focus_event->event;
+					xcb_configure_window(connection,
+										 win,
+										 XCB_CONFIG_WINDOW_STACK_MODE, 
+										 (const uint32_t[]) {XCB_STACK_MODE_ABOVE});
+					xcb_flush(connection);
+					break;
 				}
-			
 			}
 			free(event);
 		}
