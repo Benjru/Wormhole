@@ -1,5 +1,5 @@
 CC=gcc
-SOURCES=event_handler.c keybinds.c action_processor.c
+SOURCES=event_handler.c keybinds.c action_processor.c manager.c
 CFLAGS=$(shell pkg-config --cflags --libs x11 xcb xcb-keysyms xkbcommon xkbcommon-x11)
 EXECUTABLE=wormhole
 

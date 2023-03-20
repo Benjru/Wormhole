@@ -1,12 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <xcb/xcb.h>
-
-// TODO: Fix focus issues:
-//			- When a parent is dragged and then the mouse button is released, focus should be transfered to child window
-//			- When a button press is detected in a child window, it should immediately receive focus
-//			- button press/release is not detected on child window - focus issue?
-// TODO: Investigate shift issue (Once a window has been shifted with keybinds, cannot be dragged and vice versa)
+#include <string.h>
+#include "manager.h"
 
 // TODO: remove hardcoded values
 int BAR_SIZE = 40;
@@ -106,9 +102,9 @@ void wormhole_create_window(xcb_window_t window, xcb_screen_t *screen, xcb_conne
 	wormhole_window_t w_window;
 	w_window.parent = parent;
 	w_window.child = window;
-	w_window.geometry = geometry;
+	memcpy(w_window.geometry, geometry, sizeof(geometry));
 	
-	
+	// TODO: Complete window tracking logic (necessary for more advanced functionality)
 	
 	return;
 }

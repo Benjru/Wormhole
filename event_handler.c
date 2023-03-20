@@ -13,6 +13,7 @@
 #include <xkbcommon/xkbcommon-x11.h>
 #include "action_processor.h"
 #include "keybinds.h"
+#include "manager.h"
 
 static int MAX_COMBO_LENGTH = 5;
 static uint8_t *BASE_EVENT_OUT;
@@ -199,102 +200,9 @@ int main(int argc, char *argv)
 				/* Handle request to map newly created window */
 				case XCB_MAP_REQUEST:
 				{		
-				
-					// TODO: Fix focus issues:
-					//			- When a parent is dragged and then the mouse button is released, focus should be transfered to child window
-					//			- When a button press is detected in a child window, it should immediately receive focus
-					// TODO: remove hardcoded values
-					
-					int BAR_SIZE = 40;
-					int BORDER_WIDTH = 5;
-					uint32_t background_color = 0x000000;
-				
 					xcb_map_request_event_t *map_request = (xcb_map_request_event_t *) event;
 					xcb_window_t win = map_request->window;
-					
-					xcb_get_geometry_reply_t *g_reply_win = xcb_get_geometry_reply(connection, xcb_get_geometry(connection, win), NULL);
-					if(!g_reply_win)
-					{
-						printf("[Wormhole] Error - Failed to retreive geometry of window requesting mapping.\n");
-						break;
-					}
-					
-					xcb_get_geometry_reply_t *g_reply_root = xcb_get_geometry_reply(connection, xcb_get_geometry(connection, root_window), NULL);
-					if(!g_reply_root)
-					{
-						printf("[Wormhole] Error - Failed to retreive geometry of root window.\n");
-						break;
-					}
-					
-					uint16_t win_width = g_reply_win->width;
-					uint16_t win_height = g_reply_win->height;
-					uint16_t root_width = g_reply_root->width;
-					uint16_t root_height = g_reply_root->height;
-					free(g_reply_win);
-					free(g_reply_root);
-
-					uint32_t map_values[1];
-					map_values[0] = XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY |
-									XCB_EVENT_MASK_KEY_PRESS |
-									XCB_EVENT_MASK_KEY_RELEASE  |
-									XCB_EVENT_MASK_FOCUS_CHANGE |
-									XCB_EVENT_MASK_PROPERTY_CHANGE |
-									XCB_EVENT_MASK_BUTTON_PRESS |
-									XCB_EVENT_MASK_BUTTON_RELEASE |
-									XCB_EVENT_MASK_POINTER_MOTION;
-					
-					/* General geometry */
-					uint32_t geometry[5];
-					geometry[0] = (0.5 * root_width) - (0.5 * win_width);
-					geometry[1] = (0.5 * root_height) - (0.5 * win_height);
-					geometry[2] = win_width;
-					geometry[3] = win_height;
-					geometry[4] = BORDER_WIDTH;
-					
-					/* Child window geometry */
-					uint32_t c_geometry[5];
-					c_geometry[0] = geometry[0];
-					c_geometry[1] = 0;
-					c_geometry[2] = 0;
-					c_geometry[3] = geometry[3];
-					c_geometry[4] = geometry[4];
-
-					/* Parent window geometry */
-					uint32_t p_geometry[5];
-					p_geometry[0] = geometry[0];
-					p_geometry[1] = geometry[1];
-					p_geometry[2] = geometry[2];
-					p_geometry[3] = geometry[3] + BAR_SIZE;
-					p_geometry[4] = geometry[4];
-	
-					/* Reparent newly generated window */
-					xcb_window_t parent = xcb_generate_id(connection);
-					xcb_create_window(connection,
-									  XCB_COPY_FROM_PARENT, 
-									  parent,
-									  root_window,
-									  p_geometry[0],
-									  p_geometry[1], 
-									  p_geometry[2], 
-									  p_geometry[3], 
-									  p_geometry[4], 
-									  XCB_WINDOW_CLASS_INPUT_OUTPUT,
-									  screen->root_visual,
-									  XCB_CW_BACK_PIXEL,
-									  (uint32_t[]) {background_color});
-					xcb_reparent_window(connection, win, parent, 0, BAR_SIZE);
-					xcb_map_window(connection, parent);
-					xcb_map_window(connection, win);	
-					
-					/* Configure child window */
-					xcb_configure_window(connection, win, XCB_CONFIG_WINDOW_X |
-														  XCB_CONFIG_WINDOW_Y |
-														  XCB_CONFIG_WINDOW_WIDTH |
-														  XCB_CONFIG_WINDOW_HEIGHT | 
-														  XCB_CONFIG_WINDOW_BORDER_WIDTH, c_geometry);									  
-					xcb_change_window_attributes(connection, parent, XCB_CW_EVENT_MASK, map_values);										  
-					xcb_change_window_attributes(connection, win, XCB_CW_EVENT_MASK, map_values);
-					xcb_set_input_focus(connection, XCB_INPUT_FOCUS_POINTER_ROOT, win, XCB_CURRENT_TIME);
+					wormhole_create_window(win, screen, connection);
 					xcb_flush(connection);
 					break;
 				}
@@ -316,7 +224,7 @@ int main(int argc, char *argv)
 					
 				/* Handles button release events*/
 				case XCB_BUTTON_RELEASE:
-				{
+				{					
 					button_held = false;
 					break;
 				}
@@ -356,6 +264,7 @@ int main(int argc, char *argv)
 				/* Handles shift in window focus */
 				case XCB_FOCUS_IN:
 				{
+					// NOTE: This may cause issues - need to revisit
 					xcb_focus_in_event_t *focus_event = (xcb_focus_in_event_t *) event;
 					xcb_window_t win = focus_event->event;
 					xcb_configure_window(connection,
