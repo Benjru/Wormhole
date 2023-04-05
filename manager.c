@@ -28,13 +28,48 @@ void wormhole_create_window(xcb_window_t window, xcb_screen_t *screen, xcb_conne
 		return;
 	}
 	
+	/* Extract specified geometry */
 	uint16_t win_width = g_reply_win->width;
 	uint16_t win_height = g_reply_win->height;
 	uint16_t root_width = g_reply_root->width;
 	uint16_t root_height = g_reply_root->height;
 	free(g_reply_win);
 	free(g_reply_root);
-
+	
+	/* Main geometry */
+	uint32_t geometry[5];
+	geometry[0] = (0.5 * root_width) - (0.5 * win_width);
+	geometry[1] = (0.5 * root_height) - (0.5 * win_height);
+	geometry[2] = win_width;
+	geometry[3] = win_height;
+	geometry[4] = BORDER_WIDTH;
+	
+	/* Handle bad / unspecified geometry */
+	if(geometry[2] < 5 || geometry[3] < 5)
+	{
+		geometry[2] = (0.66 * root_width);
+		geometry[3] = (0.66 * root_height);
+		geometry[0] = (0.5 * root_width) - (0.5 * geometry[2]);
+		geometry[1] = (0.5 * root_height) - (0.5 * geometry[3]);
+	}
+	
+	/* Child window geometry */
+	uint32_t c_geometry[5];
+	c_geometry[0] = 0;
+	c_geometry[1] = BAR_SIZE;
+	c_geometry[2] = geometry[2];
+	c_geometry[3] = geometry[3];
+	c_geometry[4] = 0;
+	
+	/* Parent window geometry */
+	uint32_t p_geometry[5];
+	p_geometry[0] = geometry[0];
+	p_geometry[1] = geometry[1];
+	p_geometry[2] = geometry[2];
+	p_geometry[3] = geometry[3];
+	p_geometry[4] = geometry[4];
+	
+	/* Event masks */
 	uint32_t map_values[1];
 	map_values[0] = XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY |
 					XCB_EVENT_MASK_KEY_PRESS |
@@ -44,30 +79,6 @@ void wormhole_create_window(xcb_window_t window, xcb_screen_t *screen, xcb_conne
 					XCB_EVENT_MASK_BUTTON_PRESS |
 					XCB_EVENT_MASK_BUTTON_RELEASE |
 					XCB_EVENT_MASK_POINTER_MOTION;
-					
-	/* General geometry */
-	uint32_t geometry[5];
-	geometry[0] = (0.5 * root_width) - (0.5 * win_width);
-	geometry[1] = (0.5 * root_height) - (0.5 * win_height);
-	geometry[2] = win_width;
-	geometry[3] = win_height;
-	geometry[4] = BORDER_WIDTH;
-	
-	/* Child window geometry */
-	uint32_t c_geometry[5];
-	c_geometry[0] = geometry[0];
-	c_geometry[1] = 0;
-	c_geometry[2] = 0;
-	c_geometry[3] = geometry[3];
-	c_geometry[4] = geometry[4];
-
-	/* Parent window geometry */
-	uint32_t p_geometry[5];
-	p_geometry[0] = geometry[0];
-	p_geometry[1] = geometry[1];
-	p_geometry[2] = geometry[2];
-	p_geometry[3] = geometry[3] + BAR_SIZE;
-	p_geometry[4] = geometry[4];
 	
 	/* Reparent newly generated window */
 	xcb_window_t parent = xcb_generate_id(connection);
