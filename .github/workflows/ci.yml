@@ -17,7 +17,7 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get -y install pkg-config
-        DEPS=$(sed -n 's/^.*pkg-config --cflags --libs \(.*\)).*$$/\1/p' Makefile)
+        DEPS=$(grep -E '^\w+\s*[:+]?=' Makefile | sed -E 's/^.*pkg-config\s*--cflags\s*--libs\s*([^\s]+).*$$/\1/g' | tr '\n' ' ')
         sudo apt-get -y install $DEPS
     - name: make
       run: make
