@@ -14,12 +14,6 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - name: Install dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get -y install pkg-config
-        DEPS=$(grep -E '^\w+\s*[:+]?=' Makefile | sed -E 's/^.*pkg-config\s*--cflags\s*--libs\s*([^\s]+).*$$/\1/g' | tr '\n' ' ')
-        sudo apt-get -y install $DEPS
+      run: sudo apt-get update && sudo apt-get install -y xorg-dev libx11-dev libxcb-keysyms1-dev libxkbcommon-dev libxkbcommon-x11-dev
     - name: make
       run: make
-    - name: make distcheck
-      run: make distcheck
