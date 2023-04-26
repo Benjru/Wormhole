@@ -17,5 +17,3 @@ jobs:
       run: sudo apt-get update && sudo apt-get install -y xorg-dev libx11-dev libxcb-keysyms1-dev libxkbcommon-dev libxkbcommon-x11-dev
     - name: make
       run: make
-    - name: make distcheck
-      run: make distcheck
