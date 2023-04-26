@@ -1,5 +1,7 @@
 ## 🚧 Under construction 🚧
 
+[![CI](https://github.com/Benjru/Wormhole/actions/workflows/ci.yml/badge.svg)](https://https://github.com/Benjru/Wormhole/actions/workflows/ci.yml)
+
 Wormhole is an X window manager written in C using the XCB library. Currently, functionality is somewhat limited and bugs are to be expected. Logic has been implemented to handle reading in keybind configurations, displaying a window when an application is launched, and reparenting (bar-drawing). However, features such as automatic tiling and resizing have not yet been implemented
 
 ## Demonstration
