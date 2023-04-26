@@ -21,3 +21,5 @@ jobs:
         sudo apt-get -y install $DEPS
     - name: make
       run: make
+    - name: make distcheck
+      run: make distcheck
