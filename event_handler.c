@@ -141,6 +141,15 @@ int main(int argc, char *argv)
     bool top_hovering = false;
     bool bottom_hovering = false;
 	
+	bool left_dragging = false;
+	bool right_dragging = false;
+	bool top_dragging = false;
+	bool bottom_dragging = false;
+	bool top_left_dragging = false;
+	bool top_right_dragging = false;
+	bool bottom_right_dragging = false;
+	bool bottom_left_dragging = false;
+	
 	/* Cursor glyph setup (default & edges) */
 	xcb_font_t cursorFont = xcb_generate_id(connection);
 	xcb_void_cookie_t fontCookie = xcb_open_font(connection, cursorFont, strlen("cursor"), "cursor");
@@ -255,6 +264,53 @@ int main(int argc, char *argv)
 					
 					xcb_set_input_focus(connection, XCB_INPUT_FOCUS_PARENT, win, XCB_CURRENT_TIME);
 					button_held = true;
+					
+					if(left_hovering)
+					{
+						if(top_hovering)
+						{
+							top_left_dragging = true;
+						}
+						
+						else if(bottom_hovering)
+						{
+							bottom_left_dragging = true;
+						}
+						
+						else
+						{
+							left_dragging = true;
+						}
+					}
+					
+					else if(right_hovering)
+					{
+						if(top_hovering)
+						{
+							top_right_dragging = true;
+						}
+						
+						else if(bottom_hovering)
+						{
+							bottom_right_dragging = true;
+						}
+						
+						else
+						{
+							right_dragging = true;
+						}
+					}
+					
+					else if(top_hovering)
+					{
+						top_dragging = true;
+					}
+					
+					else if(bottom_hovering)
+					{
+						bottom_dragging = true;
+					}
+					
 					xcb_flush(connection);
 					break;
 				}
@@ -267,6 +323,14 @@ int main(int argc, char *argv)
 					xcb_window_t child = wormhole_get_child(win, root_window);
 					xcb_set_input_focus(connection, XCB_INPUT_FOCUS_PARENT, child, XCB_CURRENT_TIME);
 					
+					left_dragging = false;
+					right_dragging = false;
+					top_dragging = false;
+					bottom_dragging = false;
+					top_left_dragging = false;
+					top_right_dragging = false;
+					bottom_right_dragging = false;
+					bottom_left_dragging = false;
 					button_held = false;
 					break;
 				}
@@ -306,87 +370,109 @@ int main(int argc, char *argv)
 						if(mouse_y >= parent_height) bottom_hovering = true;
 					}
 					
-					// PROBLEM: Events do not register on bottom bar
-					
-					// printf("mouse_y: %d\n", mouse_y);
-					// printf("parent_height: %d\n", parent_height);
-					// printf("BAR_SIZE: %d\n", BAR_SIZE);
-					// printf("Formula: mouse_y >= parent_height - BAR_SIZE\n");
-					
-					if(left_hovering)
+					if(left_dragging)
 					{
-						if(top_hovering)
-						{
-							// left-top cursor
-							printf("left-top cursor\n");
-							xcb_change_window_attributes(connection, p_win, XCB_CW_CURSOR, &topLeftCursor);
-						}
-						
-						else if(bottom_hovering)
-						{
-							// left-bottom cursor
-							printf("left-bottom cursor\n");
-							xcb_change_window_attributes(connection, p_win, XCB_CW_CURSOR, &bottomLeftCursor);
-						}
-						
-						else
-						{
-							// left cursor
-							printf("left cursor\n");
-							xcb_change_window_attributes(connection, p_win, XCB_CW_CURSOR, &leftRightCursor);
-						}
+						printf("Left dragging detected");
 					}
 					
-					else if(right_hovering)
+					else if(top_left_dragging)
 					{
-						if(top_hovering)
-						{
-							// right-top cursor
-							printf("right-top cursor\n");
-							xcb_change_window_attributes(connection, p_win, XCB_CW_CURSOR, &topRightCursor);
-						}
-						
-						else if(bottom_hovering)
-						{
-							// right-bottom cursor
-							printf("right-bottom cursor\n");
-							xcb_change_window_attributes(connection, p_win, XCB_CW_CURSOR, &bottomRightCursor);
-						}
-						
-						else
-						{
-							// right cursor
-							printf("right cursor\n");
-							xcb_change_window_attributes(connection, p_win, XCB_CW_CURSOR, &leftRightCursor);
-						}
+						printf("Top left dragging detected");
 					}
 					
-					else if(top_hovering)
+					else if(top_dragging)
 					{
-						// top cursor
-						printf("top cursor\n");
-						xcb_change_window_attributes(connection, p_win, XCB_CW_CURSOR, &topBottomCursor);
+						printf("Top dragging detected");
 					}
 					
-					else if(bottom_hovering)
+					else if(top_right_dragging)
 					{
-						// bottom cursor
-						printf("bottom cursor\n");
-						xcb_change_window_attributes(connection, p_win, XCB_CW_CURSOR, &topBottomCursor);
+						printf("Top right dragging detected");
 					}
 					
-					/* Handle window bar dragging */
+					else if(right_dragging)
+					{
+						printf("Right dragging detected");
+					}
+					
+					else if(bottom_right_dragging)
+					{
+						printf("Bottom right dragging detected");
+					}
+					
+					else if(bottom_dragging)
+					{
+						printf("Bottom dragging detected");
+					}
+					
+					else if(bottom_left_dragging)
+					{
+						printf("Bottom left dragging detected");
+					}
+					
 					else
-					{	
-						xcb_change_window_attributes(connection, p_win, XCB_CW_CURSOR, &defaultCursor);
-						if(!button_held) break;
-						printf("Bar drag detected\n");
-						xcb_configure_window(connection,
-											 p_win,
-											 XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y,
-											 (const uint32_t[]) {win_x_pos + mouse_x - start_mouse_x, win_y_pos + mouse_y - start_mouse_y});
-						xcb_flush(connection);
+					{
+						/* Set cursor */
+						if(left_hovering)
+						{
+							if(top_hovering)
+							{
+								xcb_change_window_attributes(connection, p_win, XCB_CW_CURSOR, &topLeftCursor);
+							}
+							
+							else if(bottom_hovering)
+							{
+								xcb_change_window_attributes(connection, p_win, XCB_CW_CURSOR, &bottomLeftCursor);
+							}
+							
+							else
+							{
+								xcb_change_window_attributes(connection, p_win, XCB_CW_CURSOR, &leftRightCursor);
+							}
+						}
+						
+						else if(right_hovering)
+						{
+							if(top_hovering)
+							{
+								xcb_change_window_attributes(connection, p_win, XCB_CW_CURSOR, &topRightCursor);
+							}
+							
+							else if(bottom_hovering)
+							{
+								xcb_change_window_attributes(connection, p_win, XCB_CW_CURSOR, &bottomRightCursor);
+							}
+							
+							else
+							{
+								xcb_change_window_attributes(connection, p_win, XCB_CW_CURSOR, &leftRightCursor);
+							}
+						}
+						
+						else if(top_hovering)
+						{
+							xcb_change_window_attributes(connection, p_win, XCB_CW_CURSOR, &topBottomCursor);
+						}
+						
+						else if(bottom_hovering)
+						{
+							xcb_change_window_attributes(connection, p_win, XCB_CW_CURSOR, &topBottomCursor);
+						}
+						
+						/* Handle window bar dragging */
+						else
+						{	
+							xcb_change_window_attributes(connection, p_win, XCB_CW_CURSOR, &defaultCursor);
+							if(!button_held) break;
+							printf("Bar drag detected\n");
+							xcb_configure_window(connection,
+												 p_win,
+												 XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y,
+												 (const uint32_t[]) {win_x_pos + mouse_x - start_mouse_x, win_y_pos + mouse_y - start_mouse_y});
+							xcb_flush(connection);
+						}
 					}
+					
 					break;
 				}
 				

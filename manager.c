@@ -94,9 +94,6 @@ void wormhole_create_window(xcb_window_t window, xcb_screen_t *screen, xcb_conne
 	free(g_reply_win);
 	free(g_reply_root);
 	
-	
-	// TODO: Experiment with geometry, see if bottom border event handling can be fixed here.
-	
 	/* Main geometry */
 	uint32_t geometry[5];
 	geometry[0] = (0.5 * root_width) - (0.5 * win_width);
@@ -127,7 +124,7 @@ void wormhole_create_window(xcb_window_t window, xcb_screen_t *screen, xcb_conne
 	p_geometry[0] = geometry[0];
 	p_geometry[1] = geometry[1];
 	p_geometry[2] = geometry[2];
-	p_geometry[3] = geometry[3];
+	p_geometry[3] = geometry[3] + BAR_SIZE;
 	p_geometry[4] = geometry[4];
 	
 	/* Event masks */
