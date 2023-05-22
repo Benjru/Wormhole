@@ -8,12 +8,15 @@
 #include <xcb/xproto.h>
 #include <xcb/xcb_keysyms.h>
 #include <X11/Xlib.h>
+#include <X11/cursorfont.h>
 #include <inttypes.h>
 #include <xkbcommon/xkbcommon.h>
 #include <xkbcommon/xkbcommon-x11.h>
 #include "action_processor.h"
 #include "keybinds.h"
 #include "manager.h"
+
+#define DEFAULT_CURSOR_GLYPH 68
 
 static int MAX_COMBO_LENGTH = 5;
 static uint8_t *BASE_EVENT_OUT;
@@ -117,23 +120,57 @@ int main(int argc, char *argv)
 		xcb_disconnect(connection);
 		return 1;
 	}
-	
 	printf("[Wormhole] Launch successful.\n");
 	 
 	/* Load keybind configuration */
+	int combo_index = 0;
 	keybinds_t *keybinds;
 	keybinds = read_keybind_configuration();
-	printf("[Wormhole] Successfully loaded configuration.\n");
-	
 	xkb_keysym_t combo_keysyms[MAX_COMBO_LENGTH];
-	int combo_index = 0;
+	printf("[Wormhole] Successfully loaded keybind configurations.\n");
 
+	/* Mouse attributes */
 	int16_t mouse_x = 0;
 	int16_t mouse_y = 0;
 	int16_t start_mouse_x = 0;
 	int16_t start_mouse_y = 0;
+	
 	bool button_held = false;
-
+	bool left_hovering = false;
+    bool right_hovering = false;
+    bool top_hovering = false;
+    bool bottom_hovering = false;
+	
+	/* Cursor glyph setup (default & edges) */
+	xcb_font_t cursorFont = xcb_generate_id(connection);
+	xcb_void_cookie_t fontCookie = xcb_open_font(connection, cursorFont, strlen("cursor"), "cursor");
+	
+	xcb_cursor_t defaultCursor = xcb_generate_id(connection);
+	xcb_void_cookie_t defaultCookie = xcb_create_glyph_cursor(connection, defaultCursor, cursorFont, cursorFont,
+															  DEFAULT_CURSOR_GLYPH, DEFAULT_CURSOR_GLYPH + 1, 0, 0, 0, 0xFFFF, 0xFFFF, 0xFFFF);
+	xcb_cursor_t leftRightCursor = xcb_generate_id(connection);
+	xcb_void_cookie_t leftRightCookie = xcb_create_glyph_cursor(connection, leftRightCursor, cursorFont, cursorFont,
+														        XC_sb_h_double_arrow, XC_sb_h_double_arrow + 1, 0, 0, 0, 0xFFFF, 0xFFFF, 0xFFFF);
+	xcb_cursor_t topBottomCursor = xcb_generate_id(connection);
+	xcb_void_cookie_t topBottomCookie = xcb_create_glyph_cursor(connection, topBottomCursor, cursorFont, cursorFont,
+																XC_sb_v_double_arrow, XC_sb_v_double_arrow + 1, 0, 0, 0, 0xFFFF, 0xFFFF, 0xFFFF);
+															 
+	/* Cusror glyph setup (corners) */
+	xcb_cursor_t topLeftCursor = xcb_generate_id(connection);
+	xcb_void_cookie_t topLeftCookie = xcb_create_glyph_cursor(connection, topLeftCursor, cursorFont, cursorFont,
+																XC_top_left_corner , XC_top_left_corner + 1, 0, 0, 0, 0xFFFF, 0xFFFF, 0xFFFF);
+	xcb_cursor_t bottomLeftCursor = xcb_generate_id(connection);
+	xcb_void_cookie_t bottomLeftCookie = xcb_create_glyph_cursor(connection, bottomLeftCursor, cursorFont, cursorFont,
+																XC_bottom_left_corner , XC_bottom_left_corner + 1, 0, 0, 0, 0xFFFF, 0xFFFF, 0xFFFF);
+	xcb_cursor_t topRightCursor = xcb_generate_id(connection);
+	xcb_void_cookie_t topRightCookie = xcb_create_glyph_cursor(connection, topRightCursor, cursorFont, cursorFont,
+																XC_top_right_corner , XC_top_right_corner + 1, 0, 0, 0, 0xFFFF, 0xFFFF, 0xFFFF);
+	xcb_cursor_t bottomRightCursor = xcb_generate_id(connection);
+	xcb_void_cookie_t bottomRightCookie = xcb_create_glyph_cursor(connection, bottomRightCursor, cursorFont, cursorFont,
+																XC_bottom_right_corner , XC_bottom_right_corner + 1, 0, 0, 0, 0xFFFF, 0xFFFF, 0xFFFF);
+	
+	xcb_change_window_attributes(connection, root_window, XCB_CW_CURSOR, &defaultCursor);
+	
 	/* Main event loop */
 	while(true)
 	{	
@@ -171,7 +208,6 @@ int main(int argc, char *argv)
 				/* Handle key release events*/
 				case XCB_KEY_RELEASE:
 				{
-					
 					/* Get released key  */
 					xcb_key_release_event_t *key_release_event = (xcb_key_release_event_t*) event;
 					xcb_keycode_t keycode = key_release_event->detail;
@@ -210,13 +246,14 @@ int main(int argc, char *argv)
 				/* Handles button press events */
 				case XCB_BUTTON_PRESS:
 				{
+					printf("BUTTON PRESS DETECTED.\n");
 					xcb_button_press_event_t *button_event = (xcb_button_press_event_t *) event;
 					xcb_window_t win = button_event->event;
 					
 					start_mouse_x = button_event->event_x;
 					start_mouse_y = button_event->event_y;
 					
-					xcb_set_input_focus(connection, XCB_INPUT_FOCUS_POINTER_ROOT, win, XCB_CURRENT_TIME);
+					xcb_set_input_focus(connection, XCB_INPUT_FOCUS_PARENT, win, XCB_CURRENT_TIME);
 					button_held = true;
 					xcb_flush(connection);
 					break;
@@ -224,7 +261,12 @@ int main(int argc, char *argv)
 					
 				/* Handles button release events*/
 				case XCB_BUTTON_RELEASE:
-				{					
+				{	
+					xcb_button_press_event_t *button_event = (xcb_button_press_event_t *) event;
+					xcb_window_t win = button_event->event;
+					xcb_window_t child = wormhole_get_child(win, root_window);
+					xcb_set_input_focus(connection, XCB_INPUT_FOCUS_PARENT, child, XCB_CURRENT_TIME);
+					
 					button_held = false;
 					break;
 				}
@@ -232,11 +274,6 @@ int main(int argc, char *argv)
 				/* Handles motion notify events */
 				case XCB_MOTION_NOTIFY:
 				{	
-					if(!button_held)
-					{
-						break;
-					}
-				
 					xcb_motion_notify_event_t *motion_event = (xcb_motion_notify_event_t *) event;
 					xcb_window_t p_win = motion_event->event;
 					
@@ -249,17 +286,109 @@ int main(int argc, char *argv)
 					
 					int win_x_pos = g_reply->x;
 					int win_y_pos = g_reply->y;
+					int parent_width = g_reply->width;
+					int parent_height = g_reply-> height;
 					mouse_x = motion_event->event_x;
 					mouse_y = motion_event->event_y;
-					free(g_reply);
+					free(g_reply);	
 					
-					xcb_configure_window(connection,
-										 p_win,
-										 XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y,
-										 (const uint32_t[]) {win_x_pos + mouse_x - start_mouse_x, win_y_pos + mouse_y - start_mouse_y});
-					xcb_flush(connection);
+					left_hovering = false;
+					right_hovering = false;
+					top_hovering = false;
+					bottom_hovering = false;
+					
+					/* Check if mouse is on border(s) */
+					if(!button_held)
+					{
+						if(mouse_x <= 0) left_hovering = true;
+						if(mouse_x >= parent_width) right_hovering = true;
+						if(mouse_y <= 0) top_hovering = true;
+						if(mouse_y >= parent_height) bottom_hovering = true;
+					}
+					
+					// PROBLEM: Events do not register on bottom bar
+					
+					// printf("mouse_y: %d\n", mouse_y);
+					// printf("parent_height: %d\n", parent_height);
+					// printf("BAR_SIZE: %d\n", BAR_SIZE);
+					// printf("Formula: mouse_y >= parent_height - BAR_SIZE\n");
+					
+					if(left_hovering)
+					{
+						if(top_hovering)
+						{
+							// left-top cursor
+							printf("left-top cursor\n");
+							xcb_change_window_attributes(connection, p_win, XCB_CW_CURSOR, &topLeftCursor);
+						}
+						
+						else if(bottom_hovering)
+						{
+							// left-bottom cursor
+							printf("left-bottom cursor\n");
+							xcb_change_window_attributes(connection, p_win, XCB_CW_CURSOR, &bottomLeftCursor);
+						}
+						
+						else
+						{
+							// left cursor
+							printf("left cursor\n");
+							xcb_change_window_attributes(connection, p_win, XCB_CW_CURSOR, &leftRightCursor);
+						}
+					}
+					
+					else if(right_hovering)
+					{
+						if(top_hovering)
+						{
+							// right-top cursor
+							printf("right-top cursor\n");
+							xcb_change_window_attributes(connection, p_win, XCB_CW_CURSOR, &topRightCursor);
+						}
+						
+						else if(bottom_hovering)
+						{
+							// right-bottom cursor
+							printf("right-bottom cursor\n");
+							xcb_change_window_attributes(connection, p_win, XCB_CW_CURSOR, &bottomRightCursor);
+						}
+						
+						else
+						{
+							// right cursor
+							printf("right cursor\n");
+							xcb_change_window_attributes(connection, p_win, XCB_CW_CURSOR, &leftRightCursor);
+						}
+					}
+					
+					else if(top_hovering)
+					{
+						// top cursor
+						printf("top cursor\n");
+						xcb_change_window_attributes(connection, p_win, XCB_CW_CURSOR, &topBottomCursor);
+					}
+					
+					else if(bottom_hovering)
+					{
+						// bottom cursor
+						printf("bottom cursor\n");
+						xcb_change_window_attributes(connection, p_win, XCB_CW_CURSOR, &topBottomCursor);
+					}
+					
+					/* Handle window bar dragging */
+					else
+					{	
+						xcb_change_window_attributes(connection, p_win, XCB_CW_CURSOR, &defaultCursor);
+						if(!button_held) break;
+						printf("Bar drag detected\n");
+						xcb_configure_window(connection,
+											 p_win,
+											 XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y,
+											 (const uint32_t[]) {win_x_pos + mouse_x - start_mouse_x, win_y_pos + mouse_y - start_mouse_y});
+						xcb_flush(connection);
+					}
 					break;
-				}		
+				}
 				
 				/* Handles shift in window focus */
 				case XCB_FOCUS_IN:
@@ -272,6 +401,27 @@ int main(int argc, char *argv)
 										 XCB_CONFIG_WINDOW_STACK_MODE, 
 										 (const uint32_t[]) {XCB_STACK_MODE_ABOVE});
 					xcb_flush(connection);
+					
+					printf("Setting focus to window %u\n", win);
+					
+					break;
+				}
+				
+				/* Handles mouse leaving window border */
+				case XCB_LEAVE_NOTIFY:
+				{
+					xcb_leave_notify_event_t *leave_event = (xcb_leave_notify_event_t *)event;
+					xcb_change_window_attributes(connection, leave_event->event, XCB_CW_CURSOR, &defaultCursor); // reset cursor
+					if (leave_event->event == wormhole_get_parent(leave_event->event, root_window)) // check if parent window (will this work? need memcmp?)
+					{
+						printf("Mouse left the reparented window\n");
+						left_hovering = false;
+						right_hovering = false;
+						top_hovering = false;
+						bottom_hovering = false;
+						
+						// render default cursor
+					}
 					break;
 				}
 			}

@@ -21,8 +21,11 @@ typedef struct // TODO: implement relavent functionality
 	wormhole_window_t *windows;
 	wormhole_window_t focused;
 	int num_windows;
-} manager_data_t;
+} manager_data_t; // can this be deleted?
 
+void wormhole_destroy();
+xcb_window_t wormhole_get_parent();
+xcb_window_t wormhole_get_child();
 void wormhole_create_window();
 
 #endif

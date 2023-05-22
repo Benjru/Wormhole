@@ -4,10 +4,68 @@
 #include <string.h>
 #include "manager.h"
 
+// TODO: make getBorderWidth function, replace duplicate in event_handler
 // TODO: remove hardcoded values
 int BAR_SIZE = 40;
 int BORDER_WIDTH = 5;
 uint32_t background_color = 0x000000;
+int num_active_windows = 0;
+wormhole_window_t *active_windows;
+// manager_data_t??
+
+/* Method for destroying a window */
+void wormhole_destroy(xcb_window_t window, xcb_connection_t *connection)
+{
+    int i;
+    for (i = 0; i < num_active_windows; i++)
+    {
+        if (active_windows[i].parent == window || active_windows[i].child == window)
+        {
+            xcb_destroy_window(connection, active_windows[i].child);
+            xcb_destroy_window(connection, active_windows[i].parent);
+
+			int j;
+            for (j = i; j < num_active_windows-1; j++)
+            {
+                active_windows[j] = active_windows[j+1];
+            }
+            num_active_windows--;
+            active_windows = realloc(active_windows, sizeof(wormhole_window_t) * num_active_windows);
+            i--;
+        }
+    }
+    xcb_flush(connection);
+}
+
+/* Method for fetching parent window */
+xcb_window_t wormhole_get_parent(xcb_window_t window, xcb_window_t root)
+{
+	int i;
+	for(i=0; i<num_active_windows; i++)
+	{
+		if(active_windows[i].parent == window)
+		return active_windows[i].parent; // used to be parent?
+	
+		if(active_windows[i].child == window)
+		return active_windows[i].parent;
+	}
+	return root;
+}
+
+/* Method for fetching child window */
+xcb_window_t wormhole_get_child(xcb_window_t window, xcb_window_t root)
+{
+	int i;
+	for(i=0; i<num_active_windows; i++)
+	{
+		if(active_windows[i].parent == window)
+		return active_windows[i].child; // used to be parent?
+	
+		if(active_windows[i].child == window)
+		return active_windows[i].child;
+	}
+	return root;
+}
 
 /* Create a new window */
 void wormhole_create_window(xcb_window_t window, xcb_screen_t *screen, xcb_connection_t *connection)
@@ -35,6 +93,9 @@ void wormhole_create_window(xcb_window_t window, xcb_screen_t *screen, xcb_conne
 	uint16_t root_height = g_reply_root->height;
 	free(g_reply_win);
 	free(g_reply_root);
+	
+	
+	// TODO: Experiment with geometry, see if bottom border event handling can be fixed here.
 	
 	/* Main geometry */
 	uint32_t geometry[5];
@@ -78,6 +139,8 @@ void wormhole_create_window(xcb_window_t window, xcb_screen_t *screen, xcb_conne
 					XCB_EVENT_MASK_PROPERTY_CHANGE |
 					XCB_EVENT_MASK_BUTTON_PRESS |
 					XCB_EVENT_MASK_BUTTON_RELEASE |
+					// XCB_EVENT_MASK_ENTER_WINDOW | 
+					XCB_EVENT_MASK_LEAVE_WINDOW |
 					XCB_EVENT_MASK_POINTER_MOTION;
 	
 	/* Reparent newly generated window */
@@ -107,13 +170,19 @@ void wormhole_create_window(xcb_window_t window, xcb_screen_t *screen, xcb_conne
 										  XCB_CONFIG_WINDOW_BORDER_WIDTH, c_geometry);									  
 	xcb_change_window_attributes(connection, parent, XCB_CW_EVENT_MASK, map_values);										  
 	xcb_change_window_attributes(connection, window, XCB_CW_EVENT_MASK, map_values);
-	xcb_set_input_focus(connection, XCB_INPUT_FOCUS_POINTER_ROOT, window, XCB_CURRENT_TIME);
+	xcb_set_input_focus(connection, XCB_INPUT_FOCUS_PARENT, window, XCB_CURRENT_TIME);
 	
 	/* Create wormhole window struct */
 	wormhole_window_t w_window;
 	w_window.parent = parent;
 	w_window.child = window;
 	memcpy(w_window.geometry, geometry, sizeof(geometry));
+	if(num_active_windows == 0)
+		active_windows = (wormhole_window_t *) malloc(sizeof(wormhole_window_t));
+	else
+		active_windows = (wormhole_window_t *) realloc(active_windows, sizeof(wormhole_window_t) * num_active_windows);
+	active_windows[num_active_windows] = w_window;
+	num_active_windows++;
 	
 	// TODO: Complete window tracking logic (necessary for more advanced functionality)
 	

@@ -4,6 +4,7 @@
 #include <string.h>
 #include <xcb/xcb.h>
 #include <inttypes.h>
+#include "manager.h"
 
 // TODO: remove hardcoded value
 int SHIFT_AMOUNT = 10;
@@ -45,24 +46,13 @@ void shift_action(xcb_connection_t *connection, char direction)
 	
 	/* Assign directional shift */
 	if(direction == 'L')
-	{
-		shift_x_amount = shift_x_amount - SHIFT_AMOUNT;
-	}
-	
+	shift_x_amount = shift_x_amount - SHIFT_AMOUNT;
 	if(direction == 'R')
-	{
-		shift_x_amount = shift_x_amount + SHIFT_AMOUNT;
-	}
-	
+	shift_x_amount = shift_x_amount + SHIFT_AMOUNT;	
 	if(direction == 'U')
-	{
-		shift_y_amount = shift_y_amount - SHIFT_AMOUNT;
-	}
-	
+	shift_y_amount = shift_y_amount - SHIFT_AMOUNT;	
 	if(direction == 'D')
-	{
-		shift_y_amount = shift_y_amount + SHIFT_AMOUNT;
-	}
+	shift_y_amount = shift_y_amount + SHIFT_AMOUNT;
 	
 	uint32_t values[1];
 	values[0] = XCB_EVENT_MASK_ENTER_WINDOW |
@@ -122,27 +112,19 @@ void process_action(char *action, xcb_connection_t *connection)
 	{	
 		char* action_string = "wcmd shift_left";
 		if(memcmp(action, action_string, strlen(action_string)) == 0)
-		{
-			shift_action(connection, 'L');
-		}
-		
+		shift_action(connection, 'L');
+	
 		action_string = "wcmd shift_right";
 		if(memcmp(action, action_string, strlen(action_string)) == 0)
-		{
-			shift_action(connection, 'R');
-		}
+		shift_action(connection, 'R');
 		
 		action_string = "wcmd shift_up";
 		if(memcmp(action, action_string, strlen(action_string)) == 0)
-		{
-			shift_action(connection, 'U');
-		}
-		
+		shift_action(connection, 'U');
+			
 		action_string = "wcmd shift_down";
 		if(memcmp(action, action_string, strlen(action_string)) == 0)
-		{
-			shift_action(connection, 'D');
-		}
+		shift_action(connection, 'D');
 		
 		action_string = "wcmd kill";
 		if(memcmp(action, action_string, strlen(action_string)) == 0)
@@ -151,8 +133,7 @@ void process_action(char *action, xcb_connection_t *connection)
 			xcb_window_t win = f_reply->focus;
 			if (f_reply != NULL)
 			{
-				xcb_destroy_window(connection, win);
-				xcb_flush(connection);
+				wormhole_destroy(connection, win);
 				free(f_reply);
 			}
 		}
