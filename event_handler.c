@@ -255,7 +255,6 @@ int main(int argc, char *argv)
 				/* Handles button press events */
 				case XCB_BUTTON_PRESS:
 				{
-					printf("BUTTON PRESS DETECTED.\n");
 					xcb_button_press_event_t *button_event = (xcb_button_press_event_t *) event;
 					xcb_window_t win = button_event->event;
 					
@@ -340,6 +339,7 @@ int main(int argc, char *argv)
 				{	
 					xcb_motion_notify_event_t *motion_event = (xcb_motion_notify_event_t *) event;
 					xcb_window_t p_win = motion_event->event;
+					xcb_window_t c_win = wormhole_get_child(p_win, root_window);
 					
 					xcb_get_geometry_reply_t *g_reply = xcb_get_geometry_reply(connection, xcb_get_geometry(connection, p_win), NULL);
 					if(!g_reply)
@@ -370,49 +370,110 @@ int main(int argc, char *argv)
 						if(mouse_y >= parent_height) bottom_hovering = true;
 					}
 					
+					/* Handle window resizing */
 					if(left_dragging)
 					{
-						printf("Left dragging detected");
+						xcb_configure_window(connection, p_win,
+											 XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_WIDTH,
+											 (const uint32_t[]) {win_x_pos + mouse_x - start_mouse_x, parent_width - (mouse_x - start_mouse_x)});
+						xcb_configure_window(connection, c_win,
+											 XCB_CONFIG_WINDOW_WIDTH,
+											 (const uint32_t[]) {parent_width - (mouse_x - start_mouse_x)});
+						xcb_flush(connection);
 					}
 					
 					else if(top_left_dragging)
 					{
-						printf("Top left dragging detected");
+						xcb_configure_window(connection, p_win,
+											 XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y | XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT,
+											 (const uint32_t[]) {win_x_pos + mouse_x - start_mouse_x, win_y_pos + mouse_y - start_mouse_y,
+																 parent_width - (mouse_x - start_mouse_x), parent_height - (mouse_y - start_mouse_y)});
+						xcb_configure_window(connection,
+											 c_win,
+											 XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT,
+											 (const uint32_t[]) {parent_width - (mouse_x - start_mouse_x), parent_height - (mouse_y - start_mouse_y) - BAR_SIZE});
+						xcb_flush(connection);
 					}
 					
 					else if(top_dragging)
 					{
-						printf("Top dragging detected");
+						xcb_configure_window(connection, p_win,
+											 XCB_CONFIG_WINDOW_Y | XCB_CONFIG_WINDOW_HEIGHT,
+											 (const uint32_t[]) {win_y_pos + mouse_y - start_mouse_y, parent_height - (mouse_y - start_mouse_y)});
+						xcb_configure_window(connection, c_win,
+											 XCB_CONFIG_WINDOW_HEIGHT,
+											 (const uint32_t[]) {parent_height - (mouse_y - start_mouse_y) - BAR_SIZE});
+						xcb_flush(connection);
 					}
 					
 					else if(top_right_dragging)
 					{
-						printf("Top right dragging detected");
+						xcb_configure_window(connection, p_win,
+											 XCB_CONFIG_WINDOW_Y | XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT,
+											 (const uint32_t[]) {win_y_pos + mouse_y - start_mouse_y,
+																 mouse_x, parent_height - (mouse_y - start_mouse_y)});
+						xcb_configure_window(connection,
+											 c_win,
+											 XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT,
+											 (const uint32_t[]) {mouse_x, parent_height - (mouse_y - start_mouse_y) - BAR_SIZE});
+						xcb_flush(connection);
 					}
 					
 					else if(right_dragging)
 					{
-						printf("Right dragging detected");
+						xcb_configure_window(connection,
+											 p_win,
+											 XCB_CONFIG_WINDOW_WIDTH,
+											 (const uint32_t[]) {mouse_x});
+						xcb_configure_window(connection,
+											 c_win,
+											 XCB_CONFIG_WINDOW_WIDTH,
+											 (const uint32_t[]) {mouse_x});
+						xcb_flush(connection);
 					}
 					
 					else if(bottom_right_dragging)
 					{
-						printf("Bottom right dragging detected");
+						xcb_configure_window(connection,
+											 p_win,
+											 XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT,
+											 (const uint32_t[]) {mouse_x, mouse_y});
+						xcb_configure_window(connection,
+											 c_win,
+											 XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT,
+											 (const uint32_t[]) {mouse_x, mouse_y});
+						xcb_flush(connection);
 					}
 					
 					else if(bottom_dragging)
 					{
-						printf("Bottom dragging detected");
+						xcb_configure_window(connection,
+											 p_win,
+											 XCB_CONFIG_WINDOW_HEIGHT,
+											 (const uint32_t[]) {mouse_y});
+						xcb_configure_window(connection,
+											 c_win,
+											 XCB_CONFIG_WINDOW_HEIGHT,
+											 (const uint32_t[]) {mouse_y - BAR_SIZE});
+						xcb_flush(connection);
 					}
 					
 					else if(bottom_left_dragging)
 					{
-						printf("Bottom left dragging detected");
+						xcb_configure_window(connection,
+											 p_win,
+											 XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT,
+											 (const uint32_t[]) {win_x_pos + mouse_x - start_mouse_x, parent_width - (mouse_x - start_mouse_x), mouse_y});
+						xcb_configure_window(connection,
+											 c_win,
+											 XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT,
+											 (const uint32_t[]) {parent_width - (mouse_x - start_mouse_x), mouse_y - BAR_SIZE});
+						xcb_flush(connection);
 					}
 					
+					/* Render resizing glyphs */
 					else
 					{
-						/* Set cursor */
 						if(left_hovering)
 						{
 							if(top_hovering)
@@ -464,22 +525,19 @@ int main(int argc, char *argv)
 						{	
 							xcb_change_window_attributes(connection, p_win, XCB_CW_CURSOR, &defaultCursor);
 							if(!button_held) break;
-							printf("Bar drag detected\n");
 							xcb_configure_window(connection,
 												 p_win,
 												 XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y,
 												 (const uint32_t[]) {win_x_pos + mouse_x - start_mouse_x, win_y_pos + mouse_y - start_mouse_y});
 							xcb_flush(connection);
 						}
-					}
-					
+					}	
 					break;
 				}
 				
 				/* Handles shift in window focus */
 				case XCB_FOCUS_IN:
 				{
-					// NOTE: This may cause issues - need to revisit
 					xcb_focus_in_event_t *focus_event = (xcb_focus_in_event_t *) event;
 					xcb_window_t win = focus_event->event;
 					xcb_configure_window(connection,
@@ -487,9 +545,6 @@ int main(int argc, char *argv)
 										 XCB_CONFIG_WINDOW_STACK_MODE, 
 										 (const uint32_t[]) {XCB_STACK_MODE_ABOVE});
 					xcb_flush(connection);
-					
-					printf("Setting focus to window %u\n", win);
-					
 					break;
 				}
 				
@@ -497,16 +552,13 @@ int main(int argc, char *argv)
 				case XCB_LEAVE_NOTIFY:
 				{
 					xcb_leave_notify_event_t *leave_event = (xcb_leave_notify_event_t *)event;
-					xcb_change_window_attributes(connection, leave_event->event, XCB_CW_CURSOR, &defaultCursor); // reset cursor
-					if (leave_event->event == wormhole_get_parent(leave_event->event, root_window)) // check if parent window (will this work? need memcmp?)
+					xcb_change_window_attributes(connection, leave_event->event, XCB_CW_CURSOR, &defaultCursor);
+					if (leave_event->event == wormhole_get_parent(leave_event->event, root_window))
 					{
-						printf("Mouse left the reparented window\n");
 						left_hovering = false;
 						right_hovering = false;
 						top_hovering = false;
 						bottom_hovering = false;
-						
-						// render default cursor
 					}
 					break;
 				}
